@@ -1,11 +1,11 @@
-# Linea for Cello
+# Linea for sustaining instrument
 
 Composed and designed by Rob Casey.
 
-An animated score for cello and sine tones. Lines are drawn inside a box whose
+An animated score for a sustaining instrument and sine tones. Lines are drawn inside a box whose
 height is a range of pitch, shown in notation at the left. When the tail of a
 line starts to disappear, a sine tone begins; its pitch follows the point where
-the line is vanishing. The cellist plays sustained tones in the same register,
+the line is vanishing. The player plays sustained tones in the same register,
 in ways that may cause beating with the sine tones. The two voices sound hard
 left and hard right.
 
@@ -36,6 +36,7 @@ remembered in the browser.
 - **Tail slow-down**: how much slower the tail vanishes than the line was drawn; tones last this many times longer.
 - **Tone fade in / out**: seconds for each tone to fade in and out.
 - **Faint guide line at each semitone**: optional lines across the box.
-- **Ranges**: played in order. Each has a lowest and highest note (for example `F#2` and `A2`; `C4` is middle C), a number of pairs of lines, and a clef.
+- **Hide the timeline while playing**: optional; moving the mouse brings it back.
+- **Ranges**: played in order. Each has a lowest and highest note (for example `F#2` and `A2`; `C4` is middle C), a number of pairs of lines, and a clef (bass, tenor, alto or treble).
 
 © Rob Casey. All rights reserved.

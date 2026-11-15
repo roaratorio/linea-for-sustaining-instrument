@@ -1,4 +1,4 @@
-// Linea for Cello. © Rob Casey.
+// Linea for sustaining instrument. © Rob Casey.
 // Transport and controls: the clock, play / pause / seek, keyboard and toolbar.
 (function () {
   const LC = globalThis.LC;
@@ -27,7 +27,7 @@
   let score = LC.buildScore(config);
 
   let W = 0, H = 0;
-  const ui = { theme: 'light', playing: false, hoverT: null };
+  const ui = { theme: 'light', playing: false, hoverT: null, idle: false, tlAlpha: 1 };
 
   // The clock: time is always "anchor time + audio-clock time since anchor",
   // so picture and sound share one clock and a slow frame cannot make them drift.
@@ -93,6 +93,13 @@
     save();
   }
 
+  // Display-only choices: no need to rebuild the piece or interrupt a tone.
+  function setDisplay(key, value) {
+    config[key] = !!value;
+    score[key] = !!value;
+    save();
+  }
+
   let wakeLock = null;
   async function keepAwake(on) {
     try {
@@ -122,6 +129,8 @@
       keepAwake(false);
       refreshBar();
     }
+    const hide = score.hideTimeline && ui.playing && ui.idle && !LC.setup.isOpen;
+    ui.tlAlpha += ((hide ? 0 : 1) - ui.tlAlpha) * 0.1;
     LC.draw(ctx, W, H, score, Math.max(0, t), ui);
     requestAnimationFrame(frame);
   }
@@ -190,8 +199,9 @@
   let idleTimer = null;
   function wake() {
     document.body.classList.remove('idle');
+    ui.idle = false;
     clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => document.body.classList.add('idle'), 2500);
+    idleTimer = setTimeout(() => { document.body.classList.add('idle'); ui.idle = true; }, 2500);
   }
   window.addEventListener('mousemove', wake);
   window.addEventListener('resize', resize);
@@ -200,7 +210,7 @@
   LC.app = {
     get score() { return score; },
     get config() { return config; },
-    now, play, pause, seek, applyConfig, setVolume, resize, ui,
+    now, play, pause, seek, applyConfig, setVolume, setDisplay, resize, ui,
   };
 
   resize();

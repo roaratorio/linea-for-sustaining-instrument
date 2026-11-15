@@ -1,4 +1,4 @@
-// Linea for Cello. © Rob Casey.
+// Linea for sustaining instrument. © Rob Casey.
 // The score. From a small config (seed, ranges, timings) this works out the
 // whole piece in advance: every line, where it wanders, and when its tone
 // sounds. Drawing and sound both read from this, so they cannot disagree.
@@ -32,7 +32,7 @@
   const FLAT_NAMES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
 
   // "F#2", "Bb3", "c4" -> where the note sits on a staff and how it sounds.
-  // Octaves are scientific: C4 is middle C, the cello's lowest string is C2.
+  // Octaves are scientific: C4 is middle C.
   LC.parseNote = function (text) {
     const m = /^\s*([A-Ga-g])\s*(#|♯|b|♭)?\s*(-?\d)\s*$/.exec(String(text));
     if (!m) return null;
@@ -59,7 +59,8 @@
     tailSlow: 2,      // how many times slower the tail vanishes than the line was drawn; tones last this many times longer
     toneFade: 5,      // seconds for a tone to fade in, and to fade out
     volume: 0.8,
-    guides: false,    // faint lines across the box at each semitone
+    guides: false,
+    hideTimeline: false, // fade the timeline away while playing, until the mouse moves    // faint lines across the box at each semitone
     sections: [
       { low: 'F#2', high: 'A2', pairs: 15, clef: 'auto' },
       { low: 'E3', high: 'G#3', pairs: 35, clef: 'auto' },
@@ -80,7 +81,7 @@
     if (!(pairs >= 1 && pairs <= 500)) throw new Error('range ' + n + ': the number of pairs must be between 1 and 500');
 
     let clef = spec.clef;
-    if (clef !== 'bass' && clef !== 'tenor' && clef !== 'treble') {
+    if (clef !== 'bass' && clef !== 'tenor' && clef !== 'alto' && clef !== 'treble') {
       clef = (low.midi + high.midi) / 2 <= 59 ? 'bass' : 'treble';
     }
 
@@ -180,7 +181,7 @@
       sec.end = t;
     });
 
-    return { sections, lines, life, guides: !!cfg.guides, pairs: pairCount, duration: t + 1 };
+    return { sections, lines, life, guides: !!cfg.guides, hideTimeline: !!cfg.hideTimeline, pairs: pairCount, duration: t + 3 };
   };
 
   LC.formatTime = function (t) {

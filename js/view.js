@@ -1,4 +1,4 @@
-// Linea for Cello. © Rob Casey.
+// Linea for sustaining instrument. © Rob Casey.
 // Drawing. Given the score and a time, paint the whole screen.
 // Nothing in here changes the score or keeps time.
 (function () {
@@ -18,12 +18,14 @@
     },
   };
 
-  const FONT = '"Helvetica Neue", Helvetica, Arial, sans-serif';
-  const MONO = '"Courier New", Courier, monospace';
+  // Arial Unicode supplies ♯ and ♭ at a weight that sits with the Helvetica letters.
+  const FONT = '"Helvetica Neue", Helvetica, Arial, "Arial Unicode MS", sans-serif';
   const CLEF_FONT = '"Apple Symbols", "Noto Music", "Segoe UI Symbol", serif';
   const RANGE_FADE = 1.5;      // seconds for a change of range to cross-fade
   const RANGE_PREVIEW = 20;    // seconds of warning before a change of range
   const DISSOLVE = 0.1;        // the stretch of line, in box-widths, that fades ahead of the tail
+  const TITLE_FADE = 1.5;      // seconds for the title to clear once the piece starts
+  const END_FADE = 3;          // seconds for the score to fade away at the end
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
   const rgba = (c, a) => 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + clamp(a, 0, 1).toFixed(3) + ')';
@@ -55,6 +57,7 @@
     treble: { glyph: '𝄞', height: 7.2, top: 3.55, bottomStep: 30 },   // bottom line E4
     bass: { glyph: '𝄢', height: 3.3, top: 2.05, bottomStep: 18 },     // bottom line G2
     tenor: { glyph: '𝄡', height: 4.0, top: 3.0, bottomStep: 22 },     // bottom line D3
+    alto: { glyph: '𝄡', height: 4.0, top: 2.0, bottomStep: 24 },      // bottom line F3
   };
 
   const glyphMetrics = {};
@@ -144,12 +147,31 @@
     const next = score.sections[sec.index + 1];
     const remaining = sec.end - t;
     if (next && remaining < RANGE_PREVIEW) {
-      ctx.globalAlpha = clamp((RANGE_PREVIEW - remaining) / 2, 0, 1);
+      ctx.save();
+      ctx.globalAlpha *= clamp((RANGE_PREVIEW - remaining) / 2, 0, 1);
       ctx.fillStyle = th.accent;
       ctx.font = size * 0.85 + 'px ' + FONT;
       ctx.fillText('→ ' + next.label + '   ' + Math.ceil(remaining) + 's', x0, y + size * 1.5);
-      ctx.globalAlpha = 1;
+      ctx.restore();
     }
+
+    // Which speaker each colour of line sounds from.
+    const cue = size * 0.7;
+    const cueY = yMid - sp * 5.4;
+    ctx.font = cue + 'px ' + FONT;
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = Math.max(3, cue * 0.3);
+    ctx.lineCap = 'round';
+    let cx = x0 + ctx.lineWidth / 2;
+    ['L', 'R'].forEach((side, voice) => {
+      ctx.strokeStyle = rgba(th.voices[voice], 1);
+      stroke(ctx, cx, cueY, cx + cue * 1.6, cueY);
+      ctx.fillStyle = th.ink;
+      ctx.fillText(side, cx + cue * 2.1, cueY + cue * 0.05);
+      cx += cue * 4.6;
+    });
+    ctx.lineCap = 'butt';
+    ctx.textBaseline = 'alphabetic';
   }
 
   // Which range applies at time t, and how far a cross-fade from the last has got.
@@ -171,7 +193,7 @@
     ctx.strokeStyle = th.ink;
     ctx.fillStyle = th.ink;
     ctx.lineWidth = 1;
-    ctx.font = size + 'px ' + MONO;
+    ctx.font = size + 'px ' + FONT;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
     const minGap = size * 1.05;                     // skip labels that would collide
@@ -183,7 +205,7 @@
       const topY = L.boxY;
       const room = lastY - y >= minGap && (edge || y - topY >= minGap);
       if (edge || room) {
-        ctx.fillText(tick.label, L.boxX - 10, y);
+        ctx.fillText(tick.label, L.boxX - 12, y);
         lastY = y;
       }
     });
@@ -206,8 +228,8 @@
 
   // One line: drawn left to right at full strength. The tail sets off `life`
   // seconds after the line began and travels `slow` times slower than the line
-  // was drawn; only the stretch just ahead of the tail fades, so the line stays
-  // legible right up to the point where it is vanishing.
+  // was drawn; only the stretch just ahead of the tail fades and thins, so the
+  // line stays legible right up to the point where it is vanishing.
   function drawLine(ctx, L, th, score, line, t) {
     const age = t - line.t0;
     if (age <= 0 || age >= score.life + line.dur) return;
@@ -240,17 +262,52 @@
     for (let k = 0; k <= STOPS; k++) {
       grad.addColorStop(k / STOPS, rgba(colour, alphaAt(tail + (head - tail) * k / STOPS)));
     }
-    ctx.strokeStyle = grad;
-    ctx.lineWidth = width;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(xTail, Y(tail));
+
+    // The line is drawn as an outline so that it can taper towards the tail.
+    const pts = [];
+    const add = (tau) => pts.push({ x: X(tau), y: Y(tau), hw: width / 2 * (0.25 + 0.75 * alphaAt(tau)) });
     const step = 1 / 30;
-    for (let tau = (Math.floor(tail / step) + 1) * step; tau < head; tau += step) ctx.lineTo(X(tau), Y(tau));
-    ctx.lineTo(xHead, Y(head));
-    ctx.stroke();
-    ctx.lineCap = 'butt';
+    add(tail);
+    for (let tau = (Math.floor(tail / step) + 1) * step; tau < head; tau += step) add(tau);
+    add(head);
+    const n = pts.length;
+    for (let i = 0; i < n; i++) {
+      const a = pts[Math.max(i - 1, 0)], b = pts[Math.min(i + 1, n - 1)];
+      pts[i].ang = Math.atan2(b.y - a.y, b.x - a.x);
+    }
+    const side = (p, turn) => [p.x + Math.cos(p.ang + turn) * p.hw, p.y + Math.sin(p.ang + turn) * p.hw];
+    const Q = Math.PI / 2;
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) ctx.lineTo(...side(pts[i], -Q));
+    const end = pts[n - 1];
+    ctx.arc(end.x, end.y, end.hw, end.ang - Q, end.ang + Q);      // a round end where the line is being drawn
+    for (let i = n - 1; i >= 0; i--) ctx.lineTo(...side(pts[i], Q));
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // The title, shown until the piece begins.
+  function drawTitle(ctx, L, th, t, ui) {
+    const alpha = clamp(1 - t / TITLE_FADE, 0, 1);
+    if (alpha <= 0) return;
+    const cx = L.boxX + L.boxW / 2, cy = L.boxY + L.boxH / 2;
+    const big = clamp(L.boxH * 0.2, 26, 76);
+    ctx.save();
+    ctx.globalAlpha *= alpha;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = th.ink;
+    ctx.font = '300 ' + big + 'px ' + FONT;
+    ctx.fillText('Linea', cx, cy);
+    ctx.font = big * 0.34 + 'px ' + FONT;
+    ctx.fillText('for sustaining instrument', cx, cy + big * 0.55);
+    if (!ui.playing) {
+      ctx.fillStyle = th.faint;
+      ctx.font = clamp(big * 0.24, 12, 16) + 'px ' + FONT;
+      ctx.fillText('Space to play', cx, L.boxY + L.boxH - big * 0.3);
+    }
+    ctx.restore();
   }
 
   // --- Timeline -----------------------------------------------------------------
@@ -314,6 +371,9 @@
     ctx.fillStyle = th.bg;
     ctx.fillRect(0, 0, W, H);
 
+    // The whole score fades away over the last few seconds.
+    ctx.globalAlpha = clamp((score.duration - t) / END_FADE, 0, 1);
+
     drawPanel(ctx, L, th, score, t);
 
     const { sec, prev, p } = currentSection(score, t);
@@ -332,10 +392,21 @@
     score.lines.forEach((line) => drawLine(ctx, L, th, score, line, t));
     ctx.restore();
 
-    ctx.strokeStyle = th.ink;
+    // A light frame, with the left edge (where the pitches are marked) in ink.
+    const fx = Math.round(L.boxX) + 0.5, fy = Math.round(L.boxY) + 0.5;
     ctx.lineWidth = 1;
-    ctx.strokeRect(Math.round(L.boxX) + 0.5, Math.round(L.boxY) + 0.5, Math.round(L.boxW), Math.round(L.boxH));
+    ctx.strokeStyle = th.faint;
+    ctx.strokeRect(fx, fy, Math.round(L.boxW), Math.round(L.boxH));
+    ctx.strokeStyle = th.ink;
+    stroke(ctx, fx, fy, fx, fy + Math.round(L.boxH));
 
-    drawTimeline(ctx, L, th, score, t, ui);
+    drawTitle(ctx, L, th, t, ui);
+
+    const tlAlpha = ui.tlAlpha === undefined ? 1 : ui.tlAlpha;
+    if (tlAlpha > 0.01) {
+      ctx.globalAlpha = tlAlpha;
+      drawTimeline(ctx, L, th, score, t, ui);
+    }
+    ctx.globalAlpha = 1;
   };
 })();

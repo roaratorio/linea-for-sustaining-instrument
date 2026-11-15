@@ -1,4 +1,4 @@
-// Linea for Cello. © Rob Casey.
+// Linea for sustaining instrument. © Rob Casey.
 // The setup panel: the ranges and timings of the piece, editable, with the
 // score rebuilt live behind it. It edits a plain config object (the same shape
 // as LC.defaults) and hands it to LC.app.applyConfig().
@@ -61,7 +61,7 @@
   function rangeCard(sec, i) {
     const clef = el('select', {
       onchange: () => { sec.clef = clef.value; changed(); },
-    }, ['auto', 'bass', 'tenor', 'treble'].map((c) =>
+    }, ['auto', 'bass', 'tenor', 'alto', 'treble'].map((c) =>
       el('option', { value: c, selected: (sec.clef || 'auto') === c }, c[0].toUpperCase() + c.slice(1))));
 
     const isNote = (v) => !!LC.parseNote(v);
@@ -86,7 +86,11 @@
     });
     const guides = el('input', {
       type: 'checkbox', checked: config.guides ? '' : false,
-      onchange: () => { config.guides = guides.checked; changed(); },
+      onchange: () => { config.guides = guides.checked; LC.app.setDisplay('guides', guides.checked); },
+    });
+    const hideTimeline = el('input', {
+      type: 'checkbox', checked: config.hideTimeline ? '' : false,
+      onchange: () => { config.hideTimeline = hideTimeline.checked; LC.app.setDisplay('hideTimeline', hideTimeline.checked); },
     });
     const seed = field('Seed (the same seed always gives the same lines)', config, 'seed', { wide: true });
 
@@ -108,10 +112,11 @@
           field('Tail slow-down (×)', config, 'tailSlow', { type: 'number', min: 1, max: 20, step: 0.5 }),
           field('Tone fade in / out (s)', config, 'toneFade', { type: 'number', min: 0.05, max: 30, step: 0.5 }),
           el('label', { class: 'field' }, el('span', {}, 'Volume'), volume),
-          el('label', { class: 'check wide' }, guides, 'Faint guide line at each semitone')),
+          el('label', { class: 'check wide' }, guides, 'Faint guide line at each semitone'),
+          el('label', { class: 'check wide' }, hideTimeline, 'Hide the timeline while playing (move the mouse to bring it back)')),
         el('p', { class: 'hint' }, 'Each line is drawn at full strength. After the wait, its tail starts to disappear and its tone begins; the tone follows the vanishing point until the last of the line has gone. The tail slow-down sets how long that takes: at 1 the tail vanishes as fast as the line was drawn; at 3 it takes three times as long, so each tone lasts three times longer.')),
 
-      el('p', { class: 'hint' }, 'Ranges are played in order. Write notes as a letter, an optional # or b, and an octave: C2 is the cello’s lowest string, C4 is middle C.'),
+      el('p', { class: 'hint' }, 'Ranges are played in order. Write notes as a letter, an optional # or b, and an octave: C4 is middle C, C2 is two octaves below it.'),
       ...config.sections.map(rangeCard),
 
       el('div', { class: 'setup-actions' },

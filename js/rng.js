@@ -1,4 +1,4 @@
-// Linea for Cello. © Rob Casey.
+// Linea for sustaining instrument. © Rob Casey.
 // Seeded random numbers and smooth noise: the same seed always gives the same piece.
 (function () {
   const LC = (globalThis.LC = globalThis.LC || {});

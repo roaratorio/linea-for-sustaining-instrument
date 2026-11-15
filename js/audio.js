@@ -1,4 +1,4 @@
-// Linea for Cello. © Rob Casey.
+// Linea for sustaining instrument. © Rob Casey.
 // Sound. Each line's tone is handed to the browser's audio engine ahead of
 // time, complete with its pitch curve and its fade in and out, so the sound
 // is timed by the audio clock and a slow screen frame cannot disturb it.
