@@ -35,6 +35,7 @@ remembered in the browser.
 - **Wait before the tail fades**: seconds between a line starting and its tone beginning.
 - **Tail slow-down**: how much slower the tail vanishes than the line was drawn; tones last this many times longer.
 - **Tone fade in / out**: seconds for each tone to fade in and out.
+- **Fluctuation of the lines**: leans the lines towards calm or erratic. Each line has its own degree of fluctuation; the setting weights the odds without ruling either out.
 - **Faint guide line at each semitone**: optional lines across the box.
 - **Hide the timeline while playing**: optional; moving the mouse brings it back.
 - **Ranges**: played in order. Each has a lowest and highest note (for example `F#2` and `A2`; `C4` is middle C), a number of pairs of lines, and a clef (bass, tenor, alto or treble).

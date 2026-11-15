@@ -80,6 +80,10 @@
   }
 
   function render() {
+    const fluctuation = el('input', {
+      type: 'range', min: 0, max: 1, step: 0.01, value: config.fluctuation === undefined ? 0.5 : config.fluctuation,
+      oninput: () => { config.fluctuation = parseFloat(fluctuation.value); changed(); },
+    });
     const volume = el('input', {
       type: 'range', min: 0, max: 1, step: 0.01, value: config.volume,
       oninput: () => { config.volume = parseFloat(volume.value); LC.app.setVolume(config.volume); },
@@ -112,9 +116,10 @@
           field('Tail slow-down (×)', config, 'tailSlow', { type: 'number', min: 1, max: 20, step: 0.5 }),
           field('Tone fade in / out (s)', config, 'toneFade', { type: 'number', min: 0.05, max: 30, step: 0.5 }),
           el('label', { class: 'field' }, el('span', {}, 'Volume'), volume),
+          el('label', { class: 'field wide' }, el('span', {}, 'Fluctuation of the lines: calmer ← → more erratic'), fluctuation),
           el('label', { class: 'check wide' }, guides, 'Faint guide line at each semitone'),
           el('label', { class: 'check wide' }, hideTimeline, 'Hide the timeline while playing (move the mouse to bring it back)')),
-        el('p', { class: 'hint' }, 'Each line is drawn at full strength. After the wait, its tail starts to disappear and its tone begins; the tone follows the vanishing point until the last of the line has gone. The tail slow-down sets how long that takes: at 1 the tail vanishes as fast as the line was drawn; at 3 it takes three times as long, so each tone lasts three times longer.')),
+        el('p', { class: 'hint' }, 'Each line is drawn at full strength. After the wait, its tail starts to disappear and its tone begins; the tone follows the vanishing point until the last of the line has gone. The tail slow-down sets how long that takes: at 1 the tail vanishes as fast as the line was drawn; at 3 it takes three times as long, so each tone lasts three times longer. Fluctuation leans the lines towards calm or erratic without ruling either out: every line still curves, and an erratic or a calm one can always turn up.')),
 
       el('p', { class: 'hint' }, 'Ranges are played in order. Write notes as a letter, an optional # or b, and an octave: C4 is middle C, C2 is two octaves below it.'),
       ...config.sections.map(rangeCard),

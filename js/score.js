@@ -16,13 +16,29 @@
   const END_MAX = 0.8375;        // ...and stops no further right than this
   const MIN_DRAW = 4;            // shortest line, in seconds of drawing
   const REST_CHANCE = 0.25;      // how often one of the two voices sits a pair out
-  const NOISE_RATE = 0.15;       // how quickly a line wanders
-  const WANDER = 1.8;            // how much of the range it tends to cover
-  const EDGE = 0.03;             // lines turn back this far inside the box
+  // Each line has its own degree of fluctuation, from 0 (calm) to 1 (erratic),
+  // which sets how quickly it wanders and how much of the range it covers.
+  // Even at 0 a line still curves; it is never straight.
+  const NOISE_RATE = [0.035, 0.15, 0.4];   // how quickly a line wanders: calm, middling, erratic
+  const WANDER = [0.9, 1.7, 2.4];          // how much of the range it tends to cover
+  const MIN_SPAN = [0.07, 0.18]; // every line rises and falls by at least this much of the range: the calmest, and the rest
+  const EDGE = 0.03;             // lines come no closer to the top and bottom of the box than this
+  const KNEE = 0.2;              // beyond this distance from the middle, a line is eased round towards the edge
   const LEAD_IN = 2;             // seconds before the first line
   const GAP = 1;                 // seconds of empty box between pairs
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+
+  // Distance from the middle of the range, eased so that it approaches the
+  // edge in a curve without flattening against it. REACH scales the result so
+  // that the most extreme line just touches the edge margin.
+  function ease(a) {
+    if (a <= KNEE) return a;
+    const room = 0.5 - EDGE - KNEE;
+    const over = (a - KNEE) / room;
+    return KNEE + room * over / (1 + over);
+  }
+  const REACH = (0.5 - EDGE) / ease(0.5 * WANDER[2]);
 
   // --- Notes ----------------------------------------------------------------
 
@@ -58,6 +74,7 @@
     tailLife: 15,     // seconds a drawn point stays visible; the tone begins when the tail starts to vanish
     tailSlow: 2,      // how many times slower the tail vanishes than the line was drawn; tones last this many times longer
     toneFade: 5,      // seconds for a tone to fade in, and to fade out
+    fluctuation: 0.5, // 0 leans towards calm lines, 1 towards erratic ones; every setting still allows both
     volume: 0.8,
     guides: false,
     hideTimeline: false, // fade the timeline away while playing, until the mouse moves    // faint lines across the box at each semitone
@@ -114,6 +131,18 @@
     const slow = Number(cfg.tailSlow);
     if (!(slow >= 1 && slow <= 20)) throw new Error('the tail slow-down must be between 1 and 20');
 
+    const lean = cfg.fluctuation === undefined ? 0.5 : Number(cfg.fluctuation);
+    if (!(lean >= 0 && lean <= 1)) throw new Error('the fluctuation must be between 0 and 1');
+    // The lean bends the odds without closing off either end: at 0.5 every
+    // degree is equally likely; towards 0 most lines are calm but an erratic
+    // one can still turn up, and the reverse towards 1.
+    const bend = Math.pow(2, Math.abs(lean - 0.5) * 5);
+    const degree = (u) => lean <= 0.5 ? Math.pow(u, bend) : 1 - Math.pow(1 - u, bend);
+    const fluctRng = LC.makeRng(cfg.seed, 'fluctuation');
+    const between = (set, f) => f < 0.5
+      ? set[0] * Math.pow(set[1] / set[0], f * 2)
+      : set[1] * Math.pow(set[2] / set[1], f * 2 - 1);
+
     const rng = LC.makeRng(cfg.seed, 'lines');
     const noise = LC.makeNoise(cfg.seed);
     const sections = cfg.sections.map((s, i) => buildSection(s, i, a4));
@@ -136,7 +165,10 @@
           // one thing in the setup disturbs the rest as little as possible.
           const x0 = rng.between(START_MIN, START_MAX);
           const lengthRoll = rng();
-          const offset = rng() * 900;
+          let offset = rng() * 900;
+          const fluct = degree(fluctRng());
+          const rate = between(NOISE_RATE, fluct);
+          const wander = between(WANDER, fluct);
           if (!present[voice]) continue;
 
           const minLen = SPEED * MIN_DRAW;
@@ -148,16 +180,16 @@
           const line = {
             section: sec.index, pair: pairCount, voice,
             t0: t,                              // drawing starts
-            x0, draw, dur, slow,
+            x0, draw, dur, slow, fluct,
             toneStart: t + life,                // the tail starts to vanish: the tone fades in
             toneEnd: t + life + dur,            // the last of the line vanishes: silence
             // Height in the range (0..1) at `tau` seconds along the line.
             pos(tau) {
-              let v = 0.5 + (noise(offset + NOISE_RATE * tau) - 0.5) * WANDER;
-              for (let k = 0; k < 4 && (v < EDGE || v > 1 - EDGE); k++) {
-                v = v < EDGE ? 2 * EDGE - v : 2 * (1 - EDGE) - v;   // turn back at the edges
-              }
-              return clamp(v, EDGE, 1 - EDGE);
+              // Distance from the middle of the range. Near the edges the line is
+              // eased round in a curve, so it never leaves the box or turns sharply.
+              const d = (noise(offset + rate * tau) - 0.5) * wander;
+              const a = Math.abs(d);
+              return 0.5 + Math.sign(d) * ease(a) * REACH;
             },
             // Across the box at `tau` seconds along the line.
             x(tau) { return x0 + SPEED * tau; },
@@ -172,6 +204,15 @@
               return 1;
             },
           };
+          // No line may be all but straight: if this stretch of noise is too
+          // flat, move along to another until the line has some shape.
+          const span = () => {
+            let lo = 1, hi = 0;
+            for (let tau = 0; tau <= draw; tau += 0.1) { const v = line.pos(tau); lo = Math.min(lo, v); hi = Math.max(hi, v); }
+            return hi - lo;
+          };
+          const minSpan = MIN_SPAN[0] + (MIN_SPAN[1] - MIN_SPAN[0]) * Math.min(1, fluct * 2);
+          for (let tries = 0; tries < 40 && span() < minSpan; tries++) offset += 13.7;
           lines.push(line);
           longest = Math.max(longest, dur);
         }
