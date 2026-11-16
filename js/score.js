@@ -76,8 +76,9 @@
     toneFade: 5,      // seconds for a tone to fade in, and to fade out
     fluctuation: 0.5, // 0 leans towards calm lines, 1 towards erratic ones; every setting still allows both
     volume: 0.8,
-    guides: false,
-    hideTimeline: false, // fade the timeline away while playing, until the mouse moves    // faint lines across the box at each semitone
+    size: 'compact',  // how large the score is drawn: compact, standard or large
+    guides: false,       // faint lines across the box at each semitone
+    hideTimeline: false, // fade the timeline away while playing, until the mouse moves
     sections: [
       { low: 'F#2', high: 'A2', pairs: 15, clef: 'auto' },
       { low: 'E3', high: 'G#3', pairs: 35, clef: 'auto' },
@@ -222,7 +223,7 @@
       sec.end = t;
     });
 
-    return { sections, lines, life, guides: !!cfg.guides, hideTimeline: !!cfg.hideTimeline, pairs: pairCount, duration: t + 3 };
+    return { sections, lines, life, size: cfg.size || 'compact', guides: !!cfg.guides, hideTimeline: !!cfg.hideTimeline, pairs: pairCount, duration: t + 3 };
   };
 
   LC.formatTime = function (t) {

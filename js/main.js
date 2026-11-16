@@ -95,8 +95,9 @@
 
   // Display-only choices: no need to rebuild the piece or interrupt a tone.
   function setDisplay(key, value) {
-    config[key] = !!value;
-    score[key] = !!value;
+    if (typeof value !== 'string') value = !!value;
+    config[key] = value;
+    score[key] = value;
     save();
   }
 
@@ -129,6 +130,7 @@
       keepAwake(false);
       refreshBar();
     }
+    ui.soundBlocked = ui.playing && LC.audio.blocked();
     const hide = score.hideTimeline && ui.playing && ui.idle && !LC.setup.isOpen;
     ui.tlAlpha += ((hide ? 0 : 1) - ui.tlAlpha) * 0.1;
     LC.draw(ctx, W, H, score, Math.max(0, t), ui);
@@ -163,6 +165,10 @@
   onClick('theme', toggleTheme);
   onClick('full', toggleFullscreen);
 
+  // Any click or key press is a chance to un-block sound the browser is holding back.
+  window.addEventListener('pointerdown', () => LC.audio.nudge(), true);
+  window.addEventListener('keydown', () => LC.audio.nudge(), true);
+
   window.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.target.closest && e.target.closest('input, textarea, select')) return; // typing in setup
@@ -179,7 +185,7 @@
 
   // Click the timeline to jump to that point.
   function timelineTime(e) {
-    const tl = LC.layout(W, H).tl;
+    const tl = LC.layout(W, H, score.size).tl;
     if (e.clientY < tl.y - 10 || e.clientY > tl.y + tl.h + 22) return null;
     if (e.clientX < tl.x - 4 || e.clientX > tl.x + tl.w + 4) return null;
     return score.duration * Math.min(1, Math.max(0, (e.clientX - tl.x) / tl.w));

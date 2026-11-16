@@ -96,6 +96,10 @@
       type: 'checkbox', checked: config.hideTimeline ? '' : false,
       onchange: () => { config.hideTimeline = hideTimeline.checked; LC.app.setDisplay('hideTimeline', hideTimeline.checked); },
     });
+    const size = el('select', {
+      onchange: () => { config.size = size.value; LC.app.setDisplay('size', size.value); },
+    }, ['compact', 'standard', 'large'].map((c) =>
+      el('option', { value: c, selected: (config.size || 'compact') === c }, c[0].toUpperCase() + c.slice(1))));
     const seed = field('Seed (the same seed always gives the same lines)', config, 'seed', { wide: true });
 
     panel.replaceChildren(
@@ -117,6 +121,7 @@
           field('Tone fade in / out (s)', config, 'toneFade', { type: 'number', min: 0.05, max: 30, step: 0.5 }),
           el('label', { class: 'field' }, el('span', {}, 'Volume'), volume),
           el('label', { class: 'field wide' }, el('span', {}, 'Fluctuation of the lines: calmer ← → more erratic'), fluctuation),
+          el('label', { class: 'field' }, el('span', {}, 'Size of the score'), size),
           el('label', { class: 'check wide' }, guides, 'Faint guide line at each semitone'),
           el('label', { class: 'check wide' }, hideTimeline, 'Hide the timeline while playing (move the mouse to bring it back)')),
         el('p', { class: 'hint' }, 'Each line is drawn at full strength. After the wait, its tail starts to disappear and its tone begins; the tone follows the vanishing point until the last of the line has gone. The tail slow-down sets how long that takes: at 1 the tail vanishes as fast as the line was drawn; at 3 it takes three times as long, so each tone lasts three times longer. Fluctuation leans the lines towards calm or erratic without ruling either out: every line still curves, and an erratic or a calm one can always turn up.')),

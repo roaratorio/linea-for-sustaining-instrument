@@ -31,15 +31,33 @@
   const rgba = (c, a) => 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + clamp(a, 0, 1).toFixed(3) + ')';
 
   // Where everything goes for a window of this size.
-  LC.layout = function (W, H) {
-    const tlH = 78;
-    const panelW = clamp(W * 0.24, 200, 400);
-    const boxX = panelW + 56;
-    const boxW = Math.max(200, W - boxX - 40);
-    const boxH = clamp(boxW / 3, 70, Math.max(70, H - tlH - 150));
-    const boxY = Math.max(70, (H - tlH - boxH) / 2 + 12);
-    const tl = { x: 30, y: H - 44, w: W - 60, h: 16 };
-    return { W, H, panelW, boxX, boxY, boxW, boxH, tl };
+  // Three sizes of drawing. Compact sits small in open space; large fills the
+  // window, for reading from a distance. `frac` and `maxW` limit the box width;
+  // `sp` is one staff space; the rest are text sizes and the line thickness.
+  LC.sizes = {
+    compact: { frac: 0.52, maxW: 780, sp: 6.5, tick: 11.5, label: 12.5, line: 3.6, title: 40, tlH: 10, tlText: 11 },
+    standard: { frac: 0.66, maxW: 1100, sp: 9.5, tick: 14.5, label: 15.5, line: 5.5, title: 54, tlH: 13, tlText: 12 },
+    large: { frac: 1, maxW: Infinity, sp: 15, tick: 20, label: 21, line: 9, title: 72, tlH: 16, tlText: 13 },
+  };
+
+  // Where everything goes for a window of this size. The stave, the pitch
+  // labels and the box make one figure, centred in the window.
+  LC.layout = function (W, H, size) {
+    const S = LC.sizes[size] || LC.sizes.compact;
+    const margin = 30;
+    const sp = Math.min(S.sp, W / 90);
+    const staffW = sp * 15;
+    const labelCol = S.tick * 3.4;                 // room for the pitch names left of the box
+    const gap = sp * 2.5;
+    const side = staffW + gap + labelCol;
+    const boxW = Math.max(180, Math.min(W * S.frac, S.maxW, W - side - margin * 2));
+    const tlSpace = S.tlH + 62;
+    const boxH = clamp(boxW / 4, 60, Math.max(60, H - tlSpace - 120));
+    const x0 = Math.max(margin * 0.6, (W - side - boxW) / 2);
+    const boxX = x0 + side;
+    const boxY = Math.max(60, (H - tlSpace - boxH) / 2 + 10);
+    const tl = { x: margin, y: H - 28 - S.tlH, w: W - margin * 2, h: S.tlH, text: S.tlText };
+    return { W, H, S, sp, staffW, x0, boxX, boxY, boxW, boxH, tl };
   };
 
   function stroke(ctx, x1, y1, x2, y2) {
@@ -121,9 +139,7 @@
   }
 
   function drawPanel(ctx, L, th, score, t) {
-    const sp = Math.min(clamp(L.boxH * 0.06, 7, 20), (L.panelW - 30) / 15);
-    const staffW = sp * 15;
-    const x0 = Math.max(18, (L.panelW - staffW) / 2 + 8);
+    const sp = L.sp, staffW = L.staffW, x0 = L.x0;
     const yMid = L.boxY + L.boxH / 2;
 
     ctx.strokeStyle = th.ink;
@@ -135,12 +151,12 @@
     drawRange(ctx, th, sec, x0, yMid, sp, staffW, p);
 
     // The range in words, and a warning of the next one.
-    const size = clamp(L.boxH * 0.085, 14, 27);
+    const size = L.S.label;
     const shown = prev && p < 0.5 ? prev : sec;
-    const y = yMid + sp * 6.2 + size * 0.4;
+    const y = yMid + sp * 6.4 + size;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
-    ctx.font = '600 ' + size + 'px ' + FONT;
+    ctx.font = size + 'px ' + FONT;
     ctx.fillStyle = th.ink;
     ctx.fillText(shown.label, x0, y);
 
@@ -156,11 +172,11 @@
     }
 
     // Which speaker each colour of line sounds from.
-    const cue = size * 0.7;
-    const cueY = yMid - sp * 5.4;
+    const cue = size * 0.85;
+    const cueY = yMid - sp * 6.2;
     ctx.font = cue + 'px ' + FONT;
     ctx.textBaseline = 'middle';
-    ctx.lineWidth = Math.max(3, cue * 0.3);
+    ctx.lineWidth = Math.max(2, L.S.line * 0.8);
     ctx.lineCap = 'round';
     let cx = x0 + ctx.lineWidth / 2;
     ['L', 'R'].forEach((side, voice) => {
@@ -187,7 +203,7 @@
 
   function drawTicks(ctx, L, th, sec, alpha) {
     if (alpha <= 0) return;
-    const size = clamp(L.boxH * 0.075, 13, 24);
+    const size = L.S.tick;
     ctx.save();
     ctx.globalAlpha *= alpha;
     ctx.strokeStyle = th.ink;
@@ -201,11 +217,11 @@
     sec.ticks.forEach((tick, i) => {
       const y = L.boxY + L.boxH * (1 - tick.v);
       const edge = i === 0 || i === sec.ticks.length - 1;
-      if (!edge) stroke(ctx, L.boxX, y, L.boxX + L.boxW * 0.025, y);
+      if (!edge) stroke(ctx, L.boxX, y, L.boxX + Math.max(6, L.boxW * 0.015), y);
       const topY = L.boxY;
       const room = lastY - y >= minGap && (edge || y - topY >= minGap);
       if (edge || room) {
-        ctx.fillText(tick.label, L.boxX - 12, y);
+        ctx.fillText(tick.label, L.boxX - size * 0.75, y);
         lastY = y;
       }
     });
@@ -245,7 +261,7 @@
       return k * k * (3 - 2 * k);
     };
     const colour = th.voices[line.voice];
-    const width = Math.max(4, L.boxH * 0.032);
+    const width = L.S.line;
 
     const xTail = X(tail), xHead = X(head);
     if (xHead - xTail < 0.75) {
@@ -292,7 +308,7 @@
     const alpha = clamp(1 - t / TITLE_FADE, 0, 1);
     if (alpha <= 0) return;
     const cx = L.boxX + L.boxW / 2, cy = L.boxY + L.boxH / 2;
-    const big = clamp(L.boxH * 0.2, 26, 76);
+    const big = Math.min(L.S.title, L.boxH * 0.22);
     ctx.save();
     ctx.globalAlpha *= alpha;
     ctx.textAlign = 'center';
@@ -304,7 +320,7 @@
     ctx.fillText('for sustaining instrument', cx, cy + big * 0.55);
     if (!ui.playing) {
       ctx.fillStyle = th.faint;
-      ctx.font = clamp(big * 0.24, 12, 16) + 'px ' + FONT;
+      ctx.font = clamp(big * 0.26, 11, 15) + 'px ' + FONT;
       ctx.fillText('Space to play', cx, L.boxY + L.boxH - big * 0.3);
     }
     ctx.restore();
@@ -331,7 +347,7 @@
     ctx.strokeStyle = th.faint;
     ctx.lineWidth = 1;
     ctx.strokeRect(tl.x + 0.5, tl.y + 0.5, tl.w - 1, tl.h - 1);
-    ctx.font = '12px ' + FONT;
+    ctx.font = tl.text + 'px ' + FONT;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
     score.sections.forEach((sec) => {
@@ -347,9 +363,9 @@
     ctx.lineWidth = 1.5;
     stroke(ctx, X(t), tl.y - 4, X(t), tl.y + tl.h + 4);
     ctx.fillStyle = th.ink;
-    ctx.font = '13px ' + FONT;
+    ctx.font = tl.text + 'px ' + FONT;
     ctx.textAlign = 'right';
-    ctx.fillText(LC.formatTime(t) + ' / ' + LC.formatTime(score.duration), tl.x + tl.w, tl.y + tl.h + 20);
+    ctx.fillText(LC.formatTime(t) + ' / ' + LC.formatTime(score.duration), tl.x + tl.w, tl.y + tl.h + tl.text + 6);
 
     if (ui.hoverT !== null && ui.hoverT !== undefined) {
       const x = X(ui.hoverT);
@@ -358,7 +374,7 @@
       stroke(ctx, x, tl.y - 4, x, tl.y + tl.h + 4);
       ctx.fillStyle = th.accent;
       ctx.textAlign = x > tl.x + tl.w - 60 ? 'right' : 'left';
-      ctx.fillText(LC.formatTime(ui.hoverT), x + (ctx.textAlign === 'right' ? -6 : 6), tl.y + tl.h + 20);
+      ctx.fillText(LC.formatTime(ui.hoverT), x + (ctx.textAlign === 'right' ? -6 : 6), tl.y + tl.h + tl.text + 6);
     }
   }
 
@@ -366,7 +382,7 @@
 
   LC.draw = function (ctx, W, H, score, t, ui) {
     const th = LC.themes[ui.theme] || LC.themes.light;
-    const L = LC.layout(W, H);
+    const L = LC.layout(W, H, score.size);
     ctx.globalAlpha = 1;
     ctx.fillStyle = th.bg;
     ctx.fillRect(0, 0, W, H);
@@ -401,6 +417,15 @@
     stroke(ctx, fx, fy, fx, fy + Math.round(L.boxH));
 
     drawTitle(ctx, L, th, t, ui);
+
+    if (ui.soundBlocked) {
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = th.accent;
+      ctx.font = '13px ' + FONT;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText('The browser is holding the sound back. Click anywhere to let it through.', W / 2, L.boxY - 34);
+    }
 
     const tlAlpha = ui.tlAlpha === undefined ? 1 : ui.tlAlpha;
     if (tlAlpha > 0.01) {

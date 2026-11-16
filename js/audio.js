@@ -91,7 +91,7 @@
     start(score, t, volume) {
       LC.audio.stop();
       if (!ensureContext()) return clock();
-      if (ctx.state !== 'running') ctx.resume();
+      if (ctx.state !== 'running') ctx.resume().catch(() => {});
 
       const now = ctx.currentTime;
       const out = ctx.createGain();
@@ -99,7 +99,7 @@
       out.gain.linearRampToValueAtTime(volume, now + 0.1);   // no click when joining mid-tone
       out.connect(ctx.destination);
 
-      const s = { score, scoreT: t, clockT: now + LEAD, out, tones: new Set(), next: 0, timer: null };
+      const s = { score, scoreT: t, clockT: now + LEAD, out, tones: new Set(), next: 0, timer: null, began: performance.now() };
       topUp(s);
       s.timer = setInterval(() => topUp(s), TOP_UP * 1000);
       session = s;
@@ -125,6 +125,17 @@
         s.tones.clear();
         s.out.disconnect();
       }, 150);
+    },
+
+    // True when something should be sounding but the browser is holding the
+    // audio back (it does this until the page has been clicked or a key pressed).
+    blocked() {
+      return !!(session && ctx && ctx.state !== 'running' && performance.now() - session.began > 600);
+    },
+
+    // Ask the browser again to let the sound through. Call on a click or key press.
+    nudge() {
+      if (session && ctx && ctx.state !== 'running') ctx.resume().catch(() => {});
     },
 
     setVolume(volume) {
